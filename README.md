@@ -1,4 +1,4 @@
-# Telegram Moderation Bot 🤖🛡️
+# ToxiGuard - Telegram Moderation Bot 🤖🛡️
 
 Бот для автоматической модерации чатов с использованием OpenAI API.
 
