@@ -19,9 +19,12 @@ class ModerationBot:
         self.handlers = Handlers(self.data_manager, self.analyzer)
 
     def setup_handlers(self):
-        command_handlers = [
-            ('start', self.handlers.start),
-            ('commands', self.handlers.show_commands),
+        # Основные команды доступные везде
+        self.application.add_handler(CommandHandler("start", self.handlers.start))
+        self.application.add_handler(CommandHandler("commands", self.handlers.show_commands))
+        
+        # Команды только для групп
+        group_command_handlers = [
             ('settings', self.handlers.show_settings),
             ('set_sensitivity', self.handlers.set_sensitivity),
             ('add_ban_word', self.handlers.add_ban_word),
@@ -31,12 +34,17 @@ class ModerationBot:
             ('user_info', self.handlers.show_user_info)
         ]
 
-        for cmd, handler in command_handlers:
-            self.application.add_handler(CommandHandler(cmd, handler))
+        for cmd, handler in group_command_handlers:
+            self.application.add_handler(
+                CommandHandler(cmd, handler, filters.ChatType.GROUPS)
+            )
 
-        # Обработчик обычных сообщений
+        # Обработчик обычных сообщений только для групп
         self.application.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, self.handlers.handle_message)
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND & filters.ChatType.GROUPS,
+                self.handlers.handle_message
+            )
         )
         
         # Обработчик ошибок

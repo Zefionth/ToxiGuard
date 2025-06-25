@@ -7,48 +7,42 @@ from src.data.manager import DataManager
 logger = logging.getLogger(__name__)
 
 class OpenAIAnalyzer:
-    ANALYSIS_PROMPT = """Ты профессиональный модератор чатов. Анализируй сообщения по критериям:
+    ANALYSIS_PROMPT = """Анализируй сообщения по критериям:
 
-        1. Спам (0-100%):
-    - Явная коммерческая реклама (продажа товаров/услуг) - 90-100%
-    - Предложения купить/продать без контекста - 70-90%
-    - Упоминание брендов/товаров - 30-70% (зависит от контекста)
-    - Флуд/повторения - 50-80%
-    - Подозрительные ссылки - 80-100%
-    - Мошенничество - 100%
+    Спам (0-100):
+    - Реклама: 90-100
+    - Предл. купить/продать: 70-90
+    - Бренды: 30-70
+    - Флуд: 50-80
+    - Ссылки: 80-100
+    - Мошеннич.: 100
 
-    2. Токсичность (0-100%):
-    - Мат/прямые оскорбления - 90-100%
-    - Скрытые оскорбления - 60-80%
-    - Грубость - 40-60%
-    - Пассивная агрессия - 30-50%
-    - Нейтральное сообщение - 0-20%
+    Токсичность (0-100):
+    - Мат/оскорб.: 90-100
+    - Скрыт. оскорб.: 60-80
+    - Грубость: 40-60
+    - Пасс.агрессия: 30-50
+    - Нейтр.: 0-20
 
-    3. Опасный контент (0-100%):
-    - Фишинг/мошенничество - 100%
-    - Призывы к насилию - 100%
-    - Угрозы - 90-100%
-    - Дискриминация - 80-100%
+    Опасный (0-100):
+    - Фишинг/мош.: 100
+    - Насилие: 100
+    - Угрозы: 90-100
+    - Дискриминац.: 80-100
 
-    Формат ответа ТОЛЬКО JSON:
-    {
-    "spam": 0-100,
-    "toxic": 0-100,
-    "danger": 0-100,
-    "reason": "конкретная причина"
-    }
-
-    Примеры:
-    - "Купить": {"spam":15,"toxic":0,"danger":0,"reason":"нейтральное упоминание"}}
-    - "Ты глупый": {"toxic":70,"spam":0,"danger":30,"reason":"скрытое оскорбление"}
-    - "У тебя задержка": {"toxic":60,"spam":0,"danger":40,"reason":"потенциально оскорбительное"}
-    - "Купите виагру": {"spam":95,"toxic":0,"danger":50,"reason":"коммерческий спам"}"""
+    Ответ ТОЛЬКО JSON: {"spam":%, "toxic":%, "danger":%, "reason":"конкрет.причина"}
+    """
     def __init__(self, api_key: str, base_url: str):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.data_manager: Optional[DataManager] = None
+        self.current_group_id: Optional[int] = None
 
     def set_data_manager(self, data_manager: DataManager) -> None:
         self.data_manager = data_manager
+
+    def set_current_group(self, group_id: int) -> None:
+        """Устанавливает текущую группу для анализа"""
+        self.current_group_id = group_id
 
     def _calculate_violation_score(self, spam: float, toxic: float, danger: float) -> float:
         spam_norm = min(max(spam / 100, 0), 1)
@@ -63,8 +57,14 @@ class OpenAIAnalyzer:
         if not self.data_manager:
             raise ValueError("DataManager not set!")
             
+        if not self.current_group_id:
+            raise ValueError("Group ID not set! Call set_current_group() first.")
+            
         try:
-            logger.info(f"Analyzing message with sensitivity {self.data_manager.settings['sensitivity']}%")
+            group_settings = self.data_manager.get_group_settings(self.current_group_id)
+            sensitivity = group_settings['sensitivity']
+            
+            logger.info(f"Analyzing message with sensitivity {sensitivity}%")
             chat_completion = self.client.chat.completions.create(
                 model="gpt-4.1-nano",
                 response_format={"type": "json_object"},
@@ -82,7 +82,7 @@ class OpenAIAnalyzer:
                 result['danger']
             )
             
-            sensitivity_threshold = (1.01 - self.data_manager.settings['sensitivity']/100) * 100
+            sensitivity_threshold = (1.01 - sensitivity/100) * 100
             result['violation'] = result['violation_score'] >= sensitivity_threshold
             
             return result

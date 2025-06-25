@@ -6,3 +6,4 @@ venv/
 .env
 *.sqlite
 user_data.json
+data/

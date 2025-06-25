@@ -1,73 +1,58 @@
-import json
-import os
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
+from .database import Database
 
 logger = logging.getLogger(__name__)
 
 class DataManager:
-    DATA_FILE = 'user_data.json'
-    
     def __init__(self):
-        self.settings: Dict[str, Any]
-        self.users: Dict[str, Any]
-        self.stats: Dict[str, Any]
-        self._load_data()
+        self.db = Database()
+        self.last_messages: Dict[str, Dict[str, Any]] = {}
 
-    def _default_data(self) -> Dict[str, Any]:
-        return {
-            'settings': {
-                'sensitivity': 70,
-                'ban_words': ['реклама', 'купить', 'http://', 'telegram.me', 'оскорбление'],
-                'auto_delete': True,
-                'warn_before_ban': 3
-            },
-            'users': {},
-            'stats': {
-                'messages_checked': 0,
-                'violations_found': 0,
-                'deleted_messages': 0,
-                'banned_users': 0
-            }
-        }
+    def get_group_settings(self, group_id: int) -> Dict[str, Any]:
+        """Возвращает настройки группы"""
+        return self.db.get_group_settings(group_id)
 
-    def _load_data(self) -> None:
-        if not os.path.exists(self.DATA_FILE):
-            self._create_default_data_file()
-        
-        try:
-            with open(self.DATA_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            if not all(key in data for key in ['settings', 'users', 'stats']):
-                raise ValueError("Invalid data structure")
-                
-            self.settings = data['settings']
-            self.users = data['users']
-            self.stats = data['stats']
-            
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Error loading data: {e}, creating new file")
-            self._create_default_data_file()
-            self._load_data()
+    def update_group_settings(self, group_id: int, settings: Dict[str, Any]) -> None:
+        """Обновляет настройки группы"""
+        self.db.update_group_settings(group_id, settings)
 
-    def _create_default_data_file(self) -> None:
-        try:
-            with open(self.DATA_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self._default_data(), f, ensure_ascii=False, indent=2)
-            logger.info("Created new data file with default settings")
-        except IOError as e:
-            logger.critical(f"Failed to create data file: {e}")
-            raise
+    def get_ban_words(self, group_id: int) -> List[str]:
+        """Возвращает список запрещенных слов для группы"""
+        return self.db.get_ban_words(group_id)
 
-    def save_data(self) -> None:
-        data = {
-            'settings': self.settings,
-            'users': self.users,
-            'stats': self.stats
-        }
-        try:
-            with open(self.DATA_FILE, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except IOError as e:
-            logger.error(f"Failed to save data: {e}")
+    def add_ban_word(self, group_id: int, word: str) -> None:
+        """Добавляет слово в черный список группы"""
+        self.db.add_ban_word(group_id, word)
+
+    def remove_ban_word(self, group_id: int, word: str) -> None:
+        """Удаляет слово из черного списка группы"""
+        self.db.remove_ban_word(group_id, word)
+
+    def get_user(self, group_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+        """Возвращает данные пользователя в группе"""
+        return self.db.get_user(group_id, user_id)
+
+    def init_user(self, group_id: int, user_data: Dict[str, Any]) -> None:
+        """Инициализирует данные нового пользователя"""
+        self.db.init_user(group_id, user_data)
+
+    def update_user_stats(self, group_id: int, user_id: int, updates: Dict[str, Any]) -> None:
+        """Обновляет статистику пользователя"""
+        self.db.update_user_stats(group_id, user_id, updates)
+
+    def get_stats(self, group_id: int) -> Dict[str, int]:
+        """Возвращает статистику модерации для группы"""
+        return self.db.get_stats(group_id)
+
+    def update_stats(self, group_id: int, updates: Dict[str, int]) -> None:
+        """Обновляет статистику группы"""
+        self.db.update_stats(group_id, updates)
+
+    def add_last_message(self, user_id: str, text: str, time: float) -> None:
+        """Сохраняет последнее сообщение пользователя"""
+        self.last_messages[user_id] = {"text": text, "time": time}
+
+    def get_last_message(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Получает последнее сообщение пользователя"""
+        return self.last_messages.get(user_id)
