@@ -406,17 +406,27 @@ class Handlers:
             )
 
     async def _ban_user(self, update: Update, context: CallbackContext,
-                      user: Any, violation: Dict[str, Any]) -> None:
+                    user: Any, violation: Dict[str, Any]) -> None:
         """Блокирует пользователя."""
         try:
+            # Получаем юзернейм или создаем альтернативное упоминание
+            user_mention = (
+                f"@{user.username}" 
+                if user.username 
+                else f'<a href="tg://user?id={user.id}">{user.first_name or "Пользователь"}</a>'
+            )
+            
             await context.bot.ban_chat_member(update.message.chat.id, user.id)
             self.data_manager.update_stats(update.effective_chat.id, {'banned_users': 1})
+            
             await context.bot.send_message(
                 update.message.chat.id,
-                f"🚫 Пользователь @{user.username} забанен за повторные нарушения!"
+                f"🚫 Пользователь {user_mention} забанен за повторные нарушения!\n"
+                f"▫️ Причина: {violation.get('reason', 'нарушение правил')}",
+                parse_mode='HTML'
             )
         except Exception as e:
-            logging.error(f"Failed to ban user {user.id}: {str(e)}")
+            logging.error(f"Ошибка бана пользователя {user.id}: {str(e)}")
             raise
 
     async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
