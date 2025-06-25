@@ -1,17 +1,21 @@
-import logging
-from src.bot.bot import ModerationBot
+"""
+Основной модуль для запуска бота модерации.
+Настраивает логирование и запускает бота.
+"""
 
-def main():
-    logging.basicConfig(
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        level=logging.INFO,
-        handlers=[
-            logging.FileHandler('moderation_bot.log'),
-            logging.StreamHandler()
-        ]
-    )
+from src.bot.bot import ModerationBot
+from src.services.utils import init_logging
+
+
+def main() -> None:
+    """
+    Основная функция для запуска бота.
+    Инициализирует логирование и запускает бота модерации.
+    """
+    init_logging()
     bot = ModerationBot()
     bot.run()
 
+
 if __name__ == '__main__':
-    main()  
+    main()

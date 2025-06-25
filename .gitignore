@@ -4,6 +4,4 @@ __pycache__/
 *.env
 venv/
 .env
-*.sqlite
-user_data.json
-data/
+*.db

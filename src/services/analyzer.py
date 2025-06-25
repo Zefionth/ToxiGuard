@@ -1,12 +1,18 @@
+"""
+Модуль анализа сообщений.
+Использует OpenAI API для оценки сообщений на спам, токсичность и опасность.
+"""
+
 import json
 import logging
 from typing import Dict, Any, Optional
 from openai import OpenAI
 from src.data.manager import DataManager
 
-logger = logging.getLogger(__name__)
 
 class OpenAIAnalyzer:
+    """Класс для анализа сообщений с помощью OpenAI API."""
+
     ANALYSIS_PROMPT = """Анализируй сообщения по критериям:
 
     Спам (0-100):
@@ -32,19 +38,23 @@ class OpenAIAnalyzer:
 
     Ответ ТОЛЬКО JSON: {"spam":%, "toxic":%, "danger":%, "reason":"конкрет.причина"}
     """
-    def __init__(self, api_key: str, base_url: str):
+
+    def __init__(self, api_key: str, base_url: str) -> None:
+        """Инициализирует анализатор с API ключом и базовым URL."""
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.data_manager: Optional[DataManager] = None
         self.current_group_id: Optional[int] = None
 
     def set_data_manager(self, data_manager: DataManager) -> None:
+        """Устанавливает менеджер данных для анализатора."""
         self.data_manager = data_manager
 
     def set_current_group(self, group_id: int) -> None:
-        """Устанавливает текущую группу для анализа"""
+        """Устанавливает текущую группу для анализа."""
         self.current_group_id = group_id
 
     def _calculate_violation_score(self, spam: float, toxic: float, danger: float) -> float:
+        """Вычисляет общий балл нарушения на основе отдельных показателей."""
         spam_norm = min(max(spam / 100, 0), 1)
         toxic_norm = min(max(toxic / 100, 0), 1)
         danger_norm = min(max(danger / 100, 0), 1)
@@ -54,6 +64,7 @@ class OpenAIAnalyzer:
         return min(base_score + additional_impact, 1.0) * 100
 
     async def analyze_message(self, message_text: str) -> Dict[str, Any]:
+        """Анализирует сообщение на предмет нарушений."""
         if not self.data_manager:
             raise ValueError("DataManager not set!")
             
@@ -64,18 +75,8 @@ class OpenAIAnalyzer:
             group_settings = self.data_manager.get_group_settings(self.current_group_id)
             sensitivity = group_settings['sensitivity']
             
-            logger.info(f"Analyzing message with sensitivity {sensitivity}%")
-            chat_completion = self.client.chat.completions.create(
-                model="gpt-4.1-nano",
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": self.ANALYSIS_PROMPT},
-                    {"role": "user", "content": message_text}
-                ],
-                temperature=0.3
-            )
-            
-            result = json.loads(chat_completion.choices[0].message.content)
+            logging.info(f"Analyzing message with sensitivity {sensitivity}%")
+            result = await self._get_analysis_result(message_text)
             result['violation_score'] = self._calculate_violation_score(
                 result['spam'],
                 result['toxic'],
@@ -88,9 +89,26 @@ class OpenAIAnalyzer:
             return result
         
         except Exception as e:
-            logger.error(f"Analysis error: {str(e)}")
-            return {
-                "spam": 0, "toxic": 0, "danger": 0,
-                "violation_score": 0, "violation": False,
-                "reason": "Ошибка анализа"
-            }
+            logging.error(f"Analysis error: {str(e)}")
+            return self._create_error_response()
+
+    async def _get_analysis_result(self, message_text: str) -> Dict[str, Any]:
+        """Получает результат анализа от OpenAI API."""
+        chat_completion = self.client.chat.completions.create(
+            model="gpt-4.1-nano",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": self.ANALYSIS_PROMPT},
+                {"role": "user", "content": message_text}
+            ],
+            temperature=0.3
+        )
+        return json.loads(chat_completion.choices[0].message.content)
+
+    def _create_error_response(self) -> Dict[str, Any]:
+        """Создает ответ при ошибке анализа."""
+        return {
+            "spam": 0, "toxic": 0, "danger": 0,
+            "violation_score": 0, "violation": False,
+            "reason": "Ошибка анализа"
+        }

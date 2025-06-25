@@ -1,3 +1,8 @@
+"""
+Модуль обработчиков команд и сообщений бота.
+Содержит логику обработки входящих сообщений и команд.
+"""
+
 import logging
 import time
 from telegram import Update
@@ -8,16 +13,18 @@ from Levenshtein import distance as levenshtein_distance
 from src.data.manager import DataManager
 from src.services.analyzer import OpenAIAnalyzer
 
-logger = logging.getLogger(__name__)
 
 class Handlers:
-    def __init__(self, data_manager: DataManager, analyzer: OpenAIAnalyzer):
+    """Класс обработчиков команд и сообщений бота."""
+
+    def __init__(self, data_manager: DataManager, analyzer: OpenAIAnalyzer) -> None:
+        """Инициализирует обработчики с менеджером данных и анализатором."""
         self.data_manager = data_manager
         self.analyzer = analyzer
         self.analyzer.set_data_manager(data_manager)
 
     async def is_admin(self, update: Update, context: CallbackContext) -> bool:
-        """Проверяет, является ли пользователь администратором чата"""
+        """Проверяет, является ли пользователь администратором чата."""
         if update.effective_chat.type == "private":
             return False
             
@@ -28,16 +35,16 @@ class Handlers:
             chat_member = await context.bot.get_chat_member(chat_id, user_id)
             return chat_member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
         except Exception as e:
-            logger.error(f"Admin check error: {e}")
+            logging.error(f"Admin check error: {e}")
             return False
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Обработчик команды /start"""
+        """Обработчик команды /start."""
         if update.effective_chat.type == "private":
             await self.handle_private_chat(update, context)
             return
             
-        logger.info(f"Start command from user {update.effective_user.id} in chat {update.effective_chat.id}")
+        logging.info(f"Start command from user {update.effective_user.id} in chat {update.effective_chat.id}")
         await update.message.reply_text(
             "🛡️ Бот-модератор для Telegram\n\n"
             "Автоматически удаляет спам, оскорбления и нарушителей.\n"
@@ -45,9 +52,9 @@ class Handlers:
         )
 
     async def handle_private_chat(self, update: Update, context: CallbackContext) -> None:
-        """Обработчик личных сообщений с ботом"""
+        """Обработчик личных сообщений с ботом."""
         user = update.effective_user
-        logger.info(f"Private message from {user.id}")
+        logging.info(f"Private message from {user.id}")
         
         text = (
             "👋 Привет! Я бот-модератор для групповых чатов.\n\n"
@@ -60,7 +67,7 @@ class Handlers:
         await update.message.reply_text(text)
 
     async def show_commands(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Показывает список всех команд"""
+        """Показывает список всех команд."""
         commands = [
             "/start - Информация о боте",
             "/commands - Список всех команд",
@@ -75,7 +82,7 @@ class Handlers:
         await update.message.reply_text("📜 Доступные команды:\n\n" + "\n".join(commands))
 
     async def show_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Показывает текущие настройки"""
+        """Показывает текущие настройки."""
         if update.effective_chat.type == "private":
             await update.message.reply_text("⚙️ Настройки доступны только в групповых чатах!")
             return
@@ -97,7 +104,7 @@ class Handlers:
         await update.message.reply_text(response)
 
     async def set_sensitivity(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Устанавливает уровень чувствительности"""
+        """Устанавливает уровень чувствительности."""
         if not await self.is_admin(update, context):
             await update.message.reply_text("❌ Только администраторы могут изменять настройки!")
             return
@@ -119,7 +126,7 @@ class Handlers:
             await update.message.reply_text("Пожалуйста, укажите число от 1 до 100")
 
     async def add_ban_word(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Добавляет слово в черный список"""
+        """Добавляет слово в черный список."""
         if not await self.is_admin(update, context):
             await update.message.reply_text("❌ Только администраторы могут изменять черный список!")
             return
@@ -138,7 +145,7 @@ class Handlers:
             await update.message.reply_text(f"✅ Слово '{word}' добавлено в черный список")
 
     async def remove_ban_word(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Удаляет слово из черного списка"""
+        """Удаляет слово из черного списка."""
         if not await self.is_admin(update, context):
             await update.message.reply_text("❌ Только администраторы могут изменять черный список!")
             return
@@ -157,7 +164,7 @@ class Handlers:
             await update.message.reply_text(f"✅ Слово '{word}' удалено из черного списка")
 
     async def show_ban_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Показывает список запрещенных слов"""
+        """Показывает список запрещенных слов."""
         ban_words = self.data_manager.get_ban_words(update.effective_chat.id)
         if not ban_words:
             await update.message.reply_text("📭 Список запрещенных слов пуст")
@@ -166,7 +173,7 @@ class Handlers:
             await update.message.reply_text(f"📋 Запрещенные слова:\n\n{words_list}")
 
     async def show_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Показывает статистику модерации"""
+        """Показывает статистику модерации."""
         stats = self.data_manager.get_stats(update.effective_chat.id)
         response = (
             "📊 Статистика модерации:\n\n"
@@ -178,7 +185,7 @@ class Handlers:
         await update.message.reply_text(response)
 
     async def show_user_info(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Показывает информацию о пользователе"""
+        """Показывает информацию о пользователе."""
         if not context.args:
             await update.message.reply_text("Укажите ID или @username пользователя")
             return
@@ -203,7 +210,7 @@ class Handlers:
         await update.message.reply_text(response)
     
     def _check_message_similarity(self, text1: str, text2: str) -> float:
-        """Проверяет схожесть сообщений по расстоянию Левенштейна"""
+        """Проверяет схожесть сообщений по расстоянию Левенштейна."""
         max_len = max(len(text1), len(text2))
         if max_len == 0:
             return 0.0
@@ -211,14 +218,14 @@ class Handlers:
         return 1.0 - (distance / max_len)
     
     async def _process_spam_attempt(self, update: Update, context: CallbackContext, user: Any) -> None:
-        """Обрабатывает попытку спама повторяющимися сообщениями"""
+        """Обрабатывает попытку спама повторяющимися сообщениями."""
         try:
             bot_member = await context.bot.get_chat_member(update.message.chat.id, context.bot.id)
             if bot_member.status != ChatMemberStatus.ADMINISTRATOR:
-                logger.warning("Bot is not admin, can't delete messages")
+                logging.warning("Bot is not admin, can't delete messages")
                 return
         except Exception as e:
-            logger.error(f"Admin check failed: {e}")
+            logging.error(f"Admin check failed: {e}")
             return
 
         group_id = update.effective_chat.id
@@ -254,13 +261,13 @@ class Handlers:
             await update.message.delete()
             self.data_manager.update_stats(group_id, {'deleted_messages': 1})
         except Exception as e:
-            logger.error(f"Failed to delete spam message: {str(e)}")
+            logging.error(f"Failed to delete spam message: {str(e)}")
         
         if warnings >= settings['warn_before_ban']:
             await self._ban_user(update, context, user, {"reason": "Многократный флуд"})
 
     async def handle_message(self, update: Update, context: CallbackContext) -> None:
-        """Обрабатывает все входящие сообщения"""
+        """Обрабатывает все входящие сообщения."""
         try:
             if update.effective_chat.type == "private":
                 await self.handle_private_chat(update, context)
@@ -269,16 +276,21 @@ class Handlers:
             if not update.message or not update.message.text:
                 return
 
+            # Проверяем, является ли отправитель администратором
+            if await self.is_admin(update, context):
+                logging.info(f"Message from admin {update.effective_user.id}, skipping moderation")
+                return
+
             message = update.message
             user = message.from_user
             chat = message.chat
             group_id = chat.id
             user_id = user.id
 
-            logger.info(f"New message from {user_id} in chat {group_id}")
+            logging.info(f"New message from {user_id} in chat {group_id}")
 
             if user.is_bot:
-                logger.debug("Ignoring message from bot")
+                logging.debug("Ignoring message from bot")
                 return
             
             # Инициализация пользователя если нужно
@@ -318,12 +330,12 @@ class Handlers:
                 await self._process_violation(update, context, user, violation)
 
         except Exception as e:
-            logger.error(f"Error in handle_message: {str(e)}", exc_info=True)
+            logging.error(f"Error in handle_message: {str(e)}", exc_info=True)
             if update.message:
                 await update.message.reply_text("⚠️ Произошла ошибка при обработке сообщения")
 
     def _create_ban_word_violation(self) -> Dict[str, Any]:
-        """Создает результат нарушения для запрещенных слов"""
+        """Создает результат нарушения для запрещенных слов."""
         return {
             "spam": 90, "toxic": 40, "danger": 70,
             "violation_score": 90, "violation": True,
@@ -332,14 +344,14 @@ class Handlers:
 
     async def _process_violation(self, update: Update, context: CallbackContext, 
                                user: Any, violation: Dict[str, Any]) -> None:
-        """Обрабатывает обнаруженное нарушение"""
+        """Обрабатывает обнаруженное нарушение."""
         try:
             bot_member = await context.bot.get_chat_member(update.message.chat.id, context.bot.id)
             if bot_member.status != ChatMemberStatus.ADMINISTRATOR:
-                logger.warning("Bot is not admin, can't moderate")
+                logging.warning("Bot is not admin, can't moderate")
                 return
         except Exception as e:
-            logger.error(f"Admin check failed: {e}")
+            logging.error(f"Admin check failed: {e}")
             return
 
         group_id = update.effective_chat.id
@@ -361,7 +373,7 @@ class Handlers:
 
     async def _send_warning(self, update: Update, context: CallbackContext,
                           user: Any, violation: Dict[str, Any], warnings: int) -> Any:
-        """Отправляет предупреждение пользователю"""
+        """Отправляет предупреждение пользователю."""
         settings = self.data_manager.get_group_settings(update.effective_chat.id)
         
         warning_text = (
@@ -383,19 +395,19 @@ class Handlers:
                                       context: CallbackContext,
                                       warning_msg: Any,
                                       group_id: int) -> None:
-        """Удаляет сообщение с нарушением"""
+        """Удаляет сообщение с нарушением."""
         try:
             await message.delete()
             self.data_manager.update_stats(group_id, {'deleted_messages': 1})
         except Exception as e:
-            logger.error(f"Failed to delete message: {str(e)}")
+            logging.error(f"Failed to delete message: {str(e)}")
             await warning_msg.edit_text(
                 f"{warning_msg.text}\n\n⚠️ Не удалось удалить сообщение"
             )
 
     async def _ban_user(self, update: Update, context: CallbackContext,
                       user: Any, violation: Dict[str, Any]) -> None:
-        """Блокирует пользователя"""
+        """Блокирует пользователя."""
         try:
             await context.bot.ban_chat_member(update.message.chat.id, user.id)
             self.data_manager.update_stats(update.effective_chat.id, {'banned_users': 1})
@@ -404,11 +416,11 @@ class Handlers:
                 f"🚫 Пользователь @{user.username} забанен за повторные нарушения!"
             )
         except Exception as e:
-            logger.error(f"Failed to ban user {user.id}: {str(e)}")
+            logging.error(f"Failed to ban user {user.id}: {str(e)}")
             raise
 
     async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Обработчик ошибок бота"""
-        logger.error(f"Ошибка: {context.error}", exc_info=True)
+        """Обработчик ошибок бота."""
+        logging.error(f"Ошибка: {context.error}", exc_info=True)
         if update and update.message:
             await update.message.reply_text("❌ Произошла ошибка при обработке команды")
